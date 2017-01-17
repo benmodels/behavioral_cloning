@@ -82,8 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('model', type=str,
     help='Path to model definition json. Model weights should be on the same path.')
     args = parser.parse_args()
-#    with open(args.model, 'r') as jfile:
-    with open('model.json', 'r') as jfile:
+    with open(args.model, 'r') as jfile:
         # NOTE: if you saved the file by calling json.dump(model.to_json(), ...)
         # then you will have to call:
         #
@@ -95,8 +94,7 @@ if __name__ == '__main__':
 
     model.compile("adam", "mse")
     weights_file = args.model.replace('json', 'h5')
-#    model.load_weights(weights_file)
-    model.load_weights('model.h5')
+    model.load_weights(weights_file)
 
     # wrap Flask application with engineio's middleware
     app = socketio.Middleware(sio, app)

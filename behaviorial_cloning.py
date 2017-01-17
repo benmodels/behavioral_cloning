@@ -78,7 +78,7 @@ y_train_all = steering
 plt.hist(y_train_all,100)
 plt.show()
 
-if (False):
+if (True):
     zero_steering = y_train_all == 0
     idx = np.where(zero_steering)[0]
     np.random.shuffle(idx)
@@ -137,7 +137,7 @@ option = dict(featurewise_center=False,
     featurewise_std_normalization=False,
     samplewise_std_normalization=False,
     zca_whitening=False,
-    rotation_range= 5,
+    rotation_range= 0.0,
     width_shift_range= 0.0,
     height_shift_range= 0.0,
     shear_range= 0.,
@@ -250,12 +250,22 @@ model.compile(loss='mse',optimizer=optimizer)
 #    history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=10, validation_data=(x_train_all, y_train_all))
 #    loss, mse  = model.evaluate(x_train_all, y_train_all, batch_size=64)
 #    print(mse)
+for i in range(10):
+    history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
+                                  validation_data=(x_valid, y_valid),
+                                  samples_per_epoch=len(x_train), nb_epoch=10)
+    model_json = model.to_json()
+    with open('model'+str(i)+'.json','w') as f:
+        f.write(model_json)
+    model.save('model'+str(i)+'.h5')
+    
+    lr = K.get_value(model.optimizer.lr)
+    lr*= 0.8
+    K.set_value(model.optimizer.lr, lr)
+    print('Round: ', i+1)
+    
 
-history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
-                    validation_data=(x_valid, y_valid),
-                    samples_per_epoch=len(x_train), nb_epoch=30)
 
-print(K.get_value(model.optimizer.lr))
 #K.set_value(model.optimizer.lr, 0.0005)
 #history = model.fit(x_train, y_train, batch_size=64, nb_epoch=10, validation_data=(x_valid, y_valid))
 #history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=3, validation_data=(x_train_all, y_train_all))
@@ -274,11 +284,7 @@ for i in range(6):
     plt.imshow(np.squeeze(a[0,1,:,:,i]))
     plt.show()
 #%%
-model_json = model.to_json()
-with open('model.json','w') as f:
-    f.write(model_json)
 
-model.save('model.h5')
 
 
 
