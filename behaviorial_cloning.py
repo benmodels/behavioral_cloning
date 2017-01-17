@@ -198,10 +198,10 @@ from keras.layers.core import Activation, Dense, Flatten, Dropout
 
 model = Sequential()
 # Layer 1
-model.add(Convolution2D(2, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
+model.add(Convolution2D(10, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
 model.add(Activation('relu'))
 # Layer 2
-model.add(Convolution2D(2, 5, 5, subsample=(2,2), border_mode='valid'))
+model.add(Convolution2D(10, 5, 5, subsample=(2,2), border_mode='valid'))
 convout1 = Activation('relu') 
 model.add(convout1)
 
@@ -255,14 +255,14 @@ for i in range(10):
                                   validation_data=(x_valid, y_valid),
                                   samples_per_epoch=len(x_train), nb_epoch=10)
     model_json = model.to_json()
-    with open('model'+str(i)+'.json','w') as f:
+    with open('model'+str(i+1)+'.json','w') as f:
         f.write(model_json)
-    model.save('model'+str(i)+'.h5')
+    model.save('model'+str(i+1)+'.h5')
     
     lr = K.get_value(model.optimizer.lr)
     lr*= 0.8
     K.set_value(model.optimizer.lr, lr)
-    print('**** Round: ', i+1, ' *****\n')
+    print('**** Round ', i+1, ' Finished  ****\n')
     
 
 
