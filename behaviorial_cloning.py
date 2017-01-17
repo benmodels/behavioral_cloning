@@ -70,11 +70,27 @@ CHANNEL = 3
 
 import cv2
 
-x_train_all = np.zeros((n_frames,HEIGHT,WIDTH,CHANNEL), dtype=np.float32)
+x_train_all = np.zeros((img_center.shape[0],HEIGHT,WIDTH,CHANNEL), dtype=np.float32)
 for i,img in enumerate(img_center):
     x_train_all[i] = cv2.resize(img,(WIDTH,HEIGHT))/255.0 * 2.0 - 1.0
 y_train_all = steering
 
+plt.hist(y_train_all,100)
+plt.show()
+
+if (False):
+    zero_steering = y_train_all == 0
+    idx = np.where(zero_steering)[0]
+    np.random.shuffle(idx)
+    idx = idx[:int(idx.shape[0]*0.25)]
+    zero_steering[idx] = False
+    
+    x_train_all = x_train_all[np.logical_not(zero_steering)]
+    y_train_all = y_train_all[np.logical_not(zero_steering)]
+    n_frames = x_train_all.shape[0]
+
+plt.hist(y_train_all,100)
+plt.show()
 #x_train = np.copy(x_train_all[:1000])
 #y_train = np.copy(y_train_all[:1000])
 
@@ -83,7 +99,7 @@ from sklearn.model_selection import train_test_split
 seq_len = 10 
 n_chunkes = int(n_frames/seq_len)
 i_chunk_train,i_chunk_valid,_,_ = train_test_split(np.arange(n_chunkes, dtype=np.int32).reshape(-1,1),
-                                                   np.arange(n_chunkes, dtype=np.int32).reshape(-1,1), test_size=0.33)
+                                                   np.arange(n_chunkes, dtype=np.int32).reshape(-1,1), test_size=0.33,random_state = 1)
 assert i_chunk_train.shape[0]+i_chunk_valid.shape[0] == n_chunkes
 
 i_valid = np.zeros((n_frames), dtype=np.bool)
@@ -175,7 +191,7 @@ def datagen_aug(x, y, batch_size):
 
 
 keep_prob = 0.5 
-
+import keras
 from keras.models import Sequential
 from keras.layers.convolutional import Convolution2D
 from keras.layers.core import Activation, Dense, Flatten, Dropout
@@ -225,29 +241,33 @@ model.add(Dense(1))
 model.add(Activation('tanh'))
 
 #model.compile(loss='mse',optimizer='adam',metrics=['mse'])    
-model.compile(loss='mse',optimizer='adam')    
+#optimizer = keras.optimizers.Adamax(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-10)
+optimizer = 'adam'
+model.compile(loss='mse',optimizer=optimizer)    
 
 #%%
 #for i in range(10):
 #    history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=10, validation_data=(x_train_all, y_train_all))
 #    loss, mse  = model.evaluate(x_train_all, y_train_all, batch_size=64)
 #    print(mse)
-for i in range(10):
-    history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
-                        validation_data=(x_valid, y_valid),
-                        samples_per_epoch=len(x_train), nb_epoch=1)
-    
+
+history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
+                    validation_data=(x_valid, y_valid),
+                    samples_per_epoch=len(x_train), nb_epoch=30)
+
+print(K.get_value(model.optimizer.lr))
+#K.set_value(model.optimizer.lr, 0.0005)
 #history = model.fit(x_train, y_train, batch_size=64, nb_epoch=10, validation_data=(x_valid, y_valid))
 #history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=3, validation_data=(x_train_all, y_train_all))
 #history = model.fit(x_train, y_train, batch_size=64, nb_epoch=10, validation_data=(x_valid, y_valid))
-    # summarize history for loss
-#    plt.plot(history.history['loss'])
-#    plt.plot(history.history['val_loss'])
-#    plt.title('model loss')
-#    plt.ylabel('loss')
-#    plt.xlabel('epoch')
-#    plt.legend(['train', 'test'], loc='upper left')
-#    plt.show()
+#     summarize history for loss
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
 
 a = np.array(convout1_f([x_train[:2]]))
 for i in range(6):
