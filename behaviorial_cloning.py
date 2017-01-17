@@ -198,10 +198,10 @@ from keras.layers.core import Activation, Dense, Flatten, Dropout
 
 model = Sequential()
 # Layer 1
-model.add(Convolution2D(6, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
+model.add(Convolution2D(2, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
 model.add(Activation('relu'))
 # Layer 2
-model.add(Convolution2D(6, 5, 5, subsample=(2,2), border_mode='valid'))
+model.add(Convolution2D(2, 5, 5, subsample=(2,2), border_mode='valid'))
 convout1 = Activation('relu') 
 model.add(convout1)
 
@@ -262,7 +262,7 @@ for i in range(10):
     lr = K.get_value(model.optimizer.lr)
     lr*= 0.8
     K.set_value(model.optimizer.lr, lr)
-    print('Round: ', i+1)
+    print('**** Round: ', i+1, ' *****\n')
     
 
 
