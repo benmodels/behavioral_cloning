@@ -218,7 +218,7 @@ model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activati
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
 model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
 #model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
 #model.add(Dropout(keep_prob))
