@@ -8,32 +8,62 @@ import csv
 from matplotlib import pyplot as plt
 import numpy as np
 import scipy
-#%% === Load data
+from os import path
+from tqdm import tqdm
+import cv2
 
-# dict_keys(['throttle', 'brake', 'speed', 'steering', 'right', 'left', 'center'])
-throttle =[]
-brake = []
-speed = []
-steering = []
-right = []
-left = []
-center = []
-with open('data/driving_log.csv') as f:
-    log_dict = csv.DictReader(f)
-    for line in log_dict:
-        steering.append(float(line['steering']))
-        center.append(line['center'])
+HEIGHT = 20
+WIDTH = 40
+CHANNEL = 3
+
+#%% === Load data
+def load_data(data_path):
+    # dict_keys(['throttle', 'brake', 'speed', 'steering', 'right', 'left', 'center'])
+    steering = []
+    center = []
+    with open(data_path+'/driving_log.csv') as f:
+        log_dict = csv.DictReader(f)
+        for line in log_dict:
+            steering.append(float(line['steering']))
+            center.append(line['center'])
+    # Load images
+    img_center = []
+    for path_c in tqdm(center):
+        img_name = path.split(path_c)[-1]
+        p = path.join(data_path, 'IMG', img_name)
+        img = scipy.misc.imread(p)
+        img = cv2.resize(img,(WIDTH,HEIGHT)) #/255.0 * 2.0 - 1.0
+        img_center.append(img)
+    img_center = np.array(img_center)
+    steering = np.array(steering)
+    steering = steering.reshape(-1,1)
+    return img_center, steering
+
+
+img_center, steering = load_data('data')
+
+img_center_tmp, steering_tmp = load_data('data_2')
+img_center = np.vstack((img_center, img_center_tmp))
+steering = np.vstack((steering, steering_tmp))
+
+img_center_tmp, steering_tmp = load_data('data_3')
+img_center = np.vstack((img_center, img_center_tmp))
+steering = np.vstack((steering, steering_tmp))
+
+img_center_tmp, steering_tmp = load_data('data_4')
+img_center = np.vstack((img_center, img_center_tmp))
+steering = np.vstack((steering, steering_tmp))
+
+del img_center_tmp, steering_tmp
+
+steering = steering.reshape(-1)
 n_frames = len(steering)
         
-# Load images
-img_center = []
-for path in center:
-    img_center.append(scipy.misc.imread('data/'+path))
-img_center = np.array(img_center)
+
+        
 
 
 # Plot the time series of steering angles
-steering = np.array(steering)
 plt.plot(steering)
 plt.show()
 
@@ -64,15 +94,9 @@ plt.title('Positive angle')
 
 
 #%% Train/Test/Validation data
-HEIGHT = 80
-WIDTH = 160
-CHANNEL = 3
 
-import cv2
 
-x_train_all = np.zeros((img_center.shape[0],HEIGHT,WIDTH,CHANNEL), dtype=np.float32)
-for i,img in enumerate(img_center):
-    x_train_all[i] = cv2.resize(img,(WIDTH,HEIGHT))/255.0 * 2.0 - 1.0
+x_train_all = img_center
 y_train_all = steering
 
 plt.hist(y_train_all,100)
@@ -114,23 +138,6 @@ assert x_valid.shape[0]+x_train.shape[0] == n_frames
 #%%
 from keras.preprocessing.image import ImageDataGenerator
 import keras.backend as K
-#option = dict(featurewise_center=False,
-#    samplewise_center=False,
-#    featurewise_std_normalization=False,
-#    samplewise_std_normalization=False,
-#    zca_whitening=False,
-#    rotation_range= 5.0,
-#    width_shift_range= 2,
-#    height_shift_range= 2,
-#    shear_range= 0.,
-#    zoom_range= 0.1,
-#    channel_shift_range=0.,
-#    fill_mode='nearest',
-#    cval=0.,
-#    horizontal_flip=False,
-#    vertical_flip=False,
-#    rescale=None,
-#    dim_ordering=K.image_dim_ordering())
 
 option = dict(featurewise_center=False,
     samplewise_center=False,
@@ -194,47 +201,63 @@ keep_prob = 0.5
 import keras
 from keras.models import Sequential
 from keras.layers.convolutional import Convolution2D
-from keras.layers.core import Activation, Dense, Flatten, Dropout
+from keras.layers.core import Activation, Dense, Flatten, Dropout, Lambda
+from keras.layers.pooling import MaxPooling2D
 
-model = Sequential()
+activation = 'elu'
+
 # Layer 1
-model.add(Convolution2D(10, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
-model.add(Activation('relu'))
-# Layer 2
-model.add(Convolution2D(10, 5, 5, subsample=(2,2), border_mode='valid'))
-convout1 = Activation('relu') 
-model.add(convout1)
+#model.add(Convolution2D(10, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
+#model.add(Activation(activation))
+model = Sequential()
 
-convout1_f = K.function(model.inputs, [convout1.output])
+model.add(Lambda(lambda x: x / 255.0 - 0.5,
+                             input_shape=input_shape,
+                             output_shape=input_shape))
+model.add(Convolution2D(24, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+model.add(Convolution2D(36, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+model.add(Convolution2D(48, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+model.add(Convolution2D(64, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Dropout(keep_prob))
+
+# Layer 2
+#model.add(Convolution2D(10, 5, 5, subsample=(2,2), border_mode='valid'))
+#convout1 = Activation(activation) 
+#model.add(convout1)
+#
+#convout1_f = K.function(model.inputs, [convout1.output])
 
 
 # Layer 3
-#model.add(Convolution2D(48, 5, 5, subsample=(2,2), border_mode='valid'))
-#model.add(Activation('relu'))
+#model.add(Convolution2D(6, 5, 5, subsample=(2,2), border_mode='valid'))
+#model.add(Activation(activation))
 ## Layer 4
 #model.add(Convolution2D(64, 3, 3, subsample=(1,1), border_mode='valid'))
-#model.add(Activation('relu'))
+#model.add(Activation(activation))
 ## Layer 5
 #model.add(Convolution2D(64, 3, 3, subsample=(1,1), border_mode='valid'))
-#model.add(Activation('relu'))
+#model.add(Activation(activation))
 #
 ## === Fully connected layers
 model.add(Flatten())
 ## Layer FC1
 #model.add(Dense(1164))
-#model.add(Activation('relu'))
+#model.add(Activation(activation))
 #model.add(Dropout(keep_prob))
 # Layer FC2
 #model.add(Dense(100))
-#model.add(Activation('relu'))
+#model.add(Activation(activation))
 #model.add(Dropout(keep_prob))
 # Layer FC3
 model.add(Dense(50))
-model.add(Activation('relu'))
+model.add(Activation(activation))
 model.add(Dropout(keep_prob))
 # Layer FC4
 model.add(Dense(10))
-model.add(Activation('relu'))
+model.add(Activation(activation))
 model.add(Dropout(keep_prob))
 # Layer Fc5
 model.add(Dense(1))
@@ -250,19 +273,20 @@ model.compile(loss='mse',optimizer=optimizer)
 #    history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=10, validation_data=(x_train_all, y_train_all))
 #    loss, mse  = model.evaluate(x_train_all, y_train_all, batch_size=64)
 #    print(mse)
-for i in range(10):
+for i in range(100):
     history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
                                   validation_data=(x_valid, y_valid),
-                                  samples_per_epoch=len(x_train), nb_epoch=10)
+                                  samples_per_epoch=len(x_train), nb_epoch=1)
     model_json = model.to_json()
-    with open('model'+str(i+1)+'.json','w') as f:
+    model_name = 'model'+str(i+1)+'.json'
+    with open(model_name,'w') as f:
         f.write(model_json)
     model.save('model'+str(i+1)+'.h5')
     
     lr = K.get_value(model.optimizer.lr)
-    lr*= 0.8
+    lr*= 0.977
     K.set_value(model.optimizer.lr, lr)
-    print('**** Round ', i+1, ' Finished  ****\n')
+    print('**** Model saved to: '+model_name+'\n')
     
 
 

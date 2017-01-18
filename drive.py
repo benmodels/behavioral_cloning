@@ -15,8 +15,8 @@ from io import BytesIO
 from keras.models import model_from_json
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array
 import cv2
-HEIGHT = 80
-WIDTH = 160
+HEIGHT = 20
+WIDTH = 40
 CHANNEL = 3
 #from preprocess import image_preprocess
 
@@ -50,18 +50,17 @@ def telemetry(sid, data):
     
     sequence_num += 1
     #image_array = image #mage_preprocess(np.asarray(image)).reshape((-1, 16, 32, 1))
-    image_array = cv2.resize(np.asarray(image),(WIDTH,HEIGHT))/255.0 * 2.0 - 1.0
+    image_array = cv2.resize(np.asarray(image),(WIDTH,HEIGHT))#/255.0 * 2.0 - 1.0
     image_array = image_array.reshape((1,HEIGHT,WIDTH,CHANNEL))
     
     # This model currently assumes that the features of the model are just the images. Feel free to change this.
     steering_angle = float(model.predict(image_array, batch_size=1)[0])
-    print("---------",steering_angle)
     # Very basic way to keep a constant speed
     if float(speed) < 15:
         throttle = 0.5
     else:
         throttle = 0.05
-    print(steering_angle, throttle)
+    #print(steering_angle, throttle)
     send_control(steering_angle, throttle)
 
 @sio.on('connect')
