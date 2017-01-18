@@ -214,14 +214,14 @@ model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5,
                              input_shape=input_shape,
                              output_shape=input_shape))
-model.add(Convolution2D(6, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(9, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(12, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
-model.add(Dropout(keep_prob))
+#model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+#model.add(Dropout(keep_prob))
 
 # Layer 2
 #model.add(Convolution2D(10, 5, 5, subsample=(2,2), border_mode='valid'))
