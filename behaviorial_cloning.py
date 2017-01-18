@@ -203,9 +203,9 @@ from keras.models import Sequential
 from keras.layers.convolutional import Convolution2D
 from keras.layers.core import Activation, Dense, Flatten, Dropout, Lambda
 from keras.layers.pooling import MaxPooling2D
-
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 activation = 'elu'
-
+input_shape = (HEIGHT, WIDTH, CHANNEL)
 # Layer 1
 #model.add(Convolution2D(10, 5, 5, input_shape=(HEIGHT,  WIDTH, CHANNEL), subsample=(2,2), border_mode='valid'))
 #model.add(Activation(activation))
@@ -214,13 +214,13 @@ model = Sequential()
 model.add(Lambda(lambda x: x / 255.0 - 0.5,
                              input_shape=input_shape,
                              output_shape=input_shape))
-model.add(Convolution2D(24, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(6, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(36, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(9, 5, 5, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(48, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(12, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-model.add(Convolution2D(64, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
 model.add(Dropout(keep_prob))
 
 # Layer 2
@@ -263,30 +263,49 @@ model.add(Dropout(keep_prob))
 model.add(Dense(1))
 model.add(Activation('tanh'))
 
+
 #model.compile(loss='mse',optimizer='adam',metrics=['mse'])    
 #optimizer = keras.optimizers.Adamax(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-10)
 optimizer = 'adam'
 model.compile(loss='mse',optimizer=optimizer)    
 
+# Save the best model by validation mean squared error
+checkpoint = ModelCheckpoint("model.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)    
+# Stop training when there is no improvment. 
+# This is to speed up training, the accuracy is not affected, because the checkpoint will pick-up the best model anyway
+early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=10, verbose=1, mode='min')
 #%%
 #for i in range(10):
 #    history = model.fit(x_train_all, y_train_all, batch_size=64, nb_epoch=10, validation_data=(x_train_all, y_train_all))
 #    loss, mse  = model.evaluate(x_train_all, y_train_all, batch_size=64)
 #    print(mse)
-for i in range(100):
-    history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
+#,callbacks=[checkpoint, early_stop]
+
+model_json = model.to_json()
+model_name = 'model.json'
+with open(model_name,'w') as f:
+    f.write(model_json)
+
+
+history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
                                   validation_data=(x_valid, y_valid),
-                                  samples_per_epoch=len(x_train), nb_epoch=1)
-    model_json = model.to_json()
-    model_name = 'model'+str(i+1)+'.json'
-    with open(model_name,'w') as f:
-        f.write(model_json)
-    model.save('model'+str(i+1)+'.h5')
-    
-    lr = K.get_value(model.optimizer.lr)
-    lr*= 0.977
-    K.set_value(model.optimizer.lr, lr)
-    print('**** Model saved to: '+model_name+'\n')
+                                  samples_per_epoch=len(x_train), nb_epoch=100,callbacks=[checkpoint, early_stop, reduce_lr])
+#for i in range(20):
+#    history = model.fit_generator(datagen_aug(x_train, y_train, batch_size=64),
+#                                  validation_data=(x_valid, y_valid),
+#                                  samples_per_epoch=len(x_train), nb_epoch=100)
+#    model_json = model.to_json()
+#    model_name = 'model'+str(i+1)+'.json'
+#    with open(model_name,'w') as f:
+#        f.write(model_json)
+#    model.save('model'+str(i+1)+'.h5')
+#    
+#    lr = K.get_value(model.optimizer.lr)
+#    lr*= 0.977
+#    K.set_value(model.optimizer.lr, lr)
+#    print('**** Model saved to: '+model_name+'\n')
     
 
 
