@@ -26,7 +26,7 @@ CHANNEL = 3
 
 #%% === Load data
 def load_data_from_dir(data_path):
-    # dict_keys(['throttle', 'brake', 'speed', 'steering', 'right', 'left', 'center'])
+    # Available fields in the csv files: 'throttle', 'brake', 'speed', 'steering', 'right', 'left', 'center'
     steering = []
     center = []
     with open(data_path+'/driving_log.csv') as f:
@@ -40,7 +40,7 @@ def load_data_from_dir(data_path):
         img_name = path.split(path_c)[-1]
         p = path.join(data_path, 'IMG', img_name)
         img = scipy.misc.imread(p)
-        img = cv2.resize(img,(WIDTH,HEIGHT)) #/255.0 * 2.0 - 1.0
+        img = cv2.resize(img,(WIDTH,HEIGHT))
         img_center.append(img)
     img_center = np.array(img_center)
     steering = np.array(steering)
@@ -73,8 +73,30 @@ def horizontal_flip(x,y):
             x_[i] = np.fliplr(x_[i])
             y_[i] = -np.copy(y_[i])
     return x_, y_
+    
+
 
 def data_augmentation(x, y, batch_size):
+    option = dict(featurewise_center=False,
+    samplewise_center=False,
+    featurewise_std_normalization=False,
+    samplewise_std_normalization=False,
+    zca_whitening=False,
+    rotation_range= 5,
+    width_shift_range= 0.05,
+    height_shift_range= 0.05,
+    shear_range= 0.,
+    zoom_range= 0.05,
+    channel_shift_range=0.,
+    fill_mode='nearest',
+    cval=0.,
+    horizontal_flip=False,
+    vertical_flip=False,
+    rescale=None,
+    dim_ordering=K.image_dim_ordering())
+
+    datagen = ImageDataGenerator(**option)
+    datagen.fit(x)
     for X_batch, Y_batch in datagen.flow(x, y, batch_size=batch_size):
         X_batch, Y_batch = horizontal_flip(X_batch, Y_batch)
         yield X_batch, Y_batch
@@ -84,7 +106,7 @@ def reduce_zero_angle_samples(x_train_all, y_train_all):
     zero_steering = y_train_all == 0
     idx = np.where(zero_steering)[0]
     np.random.shuffle(idx)
-    idx = idx[:int(idx.shape[0]*0.25)]
+    idx = idx[:int(idx.shape[0]*0.01)]
     zero_steering[idx] = False
     
     x_train_all = x_train_all[np.logical_not(zero_steering)]
@@ -136,29 +158,61 @@ def shahnet(input_shape):
     #optimizer = keras.optimizers.Adamax(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-10)
     optimizer = 'adam'
     model.compile(loss='mse',optimizer=optimizer)    
-    return model
+    
+    # Save the best model by validation mean squared error
+    checkpoint = ModelCheckpoint("model.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    # Reduce learning rate when the validation loss plateaus
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=5, min_lr=1e-6)    
+    # Stop training when there is no improvment. 
+    early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
+    callbacks=[checkpoint, early_stop, reduce_lr]
+    
+    return model, callbacks
 
 
     
-    
+# %% MAIN FUNCTION
+
+print("==================")
+print("Loading data ...")
 img_center, steering = load_data()
 x_train_all = img_center
 y_train_all = steering
+
 x_train, y_train, x_valid, y_valid = split_data_test_validation(x_train_all, y_train_all)
 
-n_frames = len(steering)
-        
-
-        
-
-
 # Plot the time series of steering angles
+plt.subplot(2,3,1)
 plt.plot(steering)
-plt.show()
+plt.title("Steering angles (all data)")
+plt.ylabel("Normalized angle")
+plt.xlabel("Sample")
 
 # Plot histogram of steering angles
+plt.subplot(2,3,2)
 plt.hist(steering,100)
+plt.title("Steering angles histogram (all data)")
+plt.ylabel("Counts")
+plt.xlabel("Angle")
+
+# Plot histogram of angles in training set
+plt.subplot(2,3,3)
+plt.hist(y_train,100)
+plt.title("Angles after reducing zero values (train)")
+plt.ylabel("Counts")
+plt.xlabel("Angle")
+
+# Plot histogram of angles in training set
+plt.subplot(2,3,4)
+plt.hist(y_valid,100)
+plt.title("Angles after reducing zero values (train)")
+plt.ylabel("Counts")
+plt.xlabel("Angle")
+
+
+
 plt.show()
+
 
 # Plot one image for negative, zero and positive angles
 neg = np.where(steering < -0.6)[0][0]
@@ -182,72 +236,15 @@ plt.axis('off')
 plt.title('Positive angle')
 
 
-#%% Train/Test/Validation data
 
-
-
-
-plt.hist(y_train_all,100)
-plt.show()
-
-
-
-
-plt.hist(y_train_all,100)
-plt.show()
-#x_train = np.copy(x_train_all[:1000])
-#y_train = np.copy(y_train_all[:1000])
-
-# Divide the train set into chunks of seq_len frames
-
-
-
-
-
-#%%
-
-
-option = dict(featurewise_center=False,
-    samplewise_center=False,
-    featurewise_std_normalization=False,
-    samplewise_std_normalization=False,
-    zca_whitening=False,
-    rotation_range= 5,
-    width_shift_range= 0.05,
-    height_shift_range= 0.05,
-    shear_range= 0.,
-    zoom_range= 0.05,
-    channel_shift_range=0.,
-    fill_mode='nearest',
-    cval=0.,
-    horizontal_flip=False,
-    vertical_flip=False,
-    rescale=None,
-    dim_ordering=K.image_dim_ordering())
-
-datagen = ImageDataGenerator(**option)
-datagen.fit(x_train)
-
-plt.subplot(1,2,1)
-plt.hist(y_train,20)
-plt.subplot(1,2,2)
-plt.hist(y_valid,20)
-plt.show()
     
 
 #%%
 
-
-
     
-model = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
+model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
 
-# Save the best model by validation mean squared error
-checkpoint = ModelCheckpoint("model.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-# Reduce learning rate when the validation loss plateaus
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=5, min_lr=1e-6)    
-# Stop training when there is no improvment. 
-early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
+
 # Save the model architecture
 with open('model.json','w') as f:
     f.write(model.to_json())
@@ -255,7 +252,7 @@ with open('model.json','w') as f:
 # Train the model by using Keras' generator
 history = model.fit_generator(data_augmentation(x_train, y_train, batch_size=64),
                                   validation_data=(x_valid, y_valid),
-                                  samples_per_epoch=len(x_train), nb_epoch=200,callbacks=[checkpoint, early_stop, reduce_lr])
+                                  samples_per_epoch=len(x_train), nb_epoch=200,callbacks=callbacks)
 
 # Plot validation and training loss
 plt.plot(history.history['loss'])
@@ -270,10 +267,11 @@ conv1 = K.function(model.inputs, [model.layers[1].output])
 conv2 = K.function(model.inputs, [model.layers[3].output]) 
 conv3 = K.function(model.inputs, [model.layers[5].output]) 
 
-img = x_train[0].reshape(np.hstack((1,img.shape)))
-a = np.array(conv2([img]))
+img = x_train[0]
+img = img.reshape(np.hstack((1,img.shape)))
+a = np.array(conv1([img]))
 for i in range(a.shape[4]):
-    plt.imshow(np.squeeze(a[0,1,:,:,i]),cmap='gray')
+    plt.imshow(np.squeeze(a[:,:,:,:,i]),cmap='gray')
     plt.show()
 #%%
 
