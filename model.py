@@ -12,7 +12,11 @@ from os import path
 from tqdm import tqdm
 import cv2
 from sklearn.model_selection import train_test_split
-
+from keras.models import Sequential
+from keras.layers.convolutional import Convolution2D
+from keras.layers.core import Dense, Flatten, Dropout, Lambda
+from keras.layers.pooling import MaxPooling2D
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
 #%% === Load data
 def load_data_from_dir(data_path):
@@ -134,31 +138,24 @@ def split_data_test_validation(x_train_all, y_train_all):
     return x_train, y_train, x_valid, y_valid
     
 def shahnet(input_shape):
-    from keras.models import Sequential
-    from keras.layers.convolutional import Convolution2D
-    from keras.layers.core import Dense, Flatten, Dropout, Lambda
-    from keras.layers.pooling import MaxPooling2D
-    from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
-    
     keep_prob = 0.5 
     activation = 'elu'
     
     model = Sequential()
     model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=input_shape, output_shape=input_shape))
-#    model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
-    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     
-    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     
-    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     ## === Fully connected layers
     model.add(Flatten())
-#    model.add(Dense(30, activation=activation))
-#    model.add(Dropout(keep_prob))
-#    model.add(Dense(20, activation=activation))
+    model.add(Dense(50, activation=activation))
+    model.add(Dropout(keep_prob))
+    model.add(Dense(10, activation=activation))
     model.add(Dropout(keep_prob))
     model.add(Dense(1, activation='tanh'))
     
@@ -176,14 +173,79 @@ def shahnet(input_shape):
     model.summary()
     return model, callbacks
 
+def visualize_results(steering, y_train, y_valid):
+    # Plot the time series of steering angles
+    plt.subplot(2,2,1)
+    plt.plot(steering)
+    plt.title("Steering angles (all data)")
+    plt.ylabel("Normalized angle")
+    plt.xlabel("Sample")
+    
+    # Plot histogram of steering angles
+    plt.subplot(2,2,2)
+    plt.hist(steering,100)
+    plt.title("Steering angles histogram (all data)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    # Plot histogram of angles in training set
+    plt.subplot(2,2,3)
+    plt.hist(y_train,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    # Plot histogram of angles in training set
+    plt.subplot(2,2,4)
+    plt.hist(y_valid,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
 
-#model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
+    plt.draw()
+
+
+def shahnet_small(input_shape):
+    keep_prob = 0.5 
+    activation = 'elu'
+    
+    model = Sequential()
+    model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=input_shape, output_shape=input_shape))
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+    
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+    
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+    ## === Fully connected layers
+    model.add(Flatten())
+    model.add(Dropout(keep_prob))
+    model.add(Dense(1, activation='tanh'))
+    
+    #optimizer = keras.optimizers.Adamax(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=1e-10)
+    optimizer = 'adam'
+    model.compile(loss='mse',optimizer=optimizer)    
+    
+    # Save the best model by validation mean squared error
+    checkpoint = ModelCheckpoint("model_small.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    # Reduce learning rate when the validation loss plateaus
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=5, min_lr=1e-6)    
+    # Stop training when there is no improvment. 
+    early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
+    callbacks=[checkpoint, early_stop, reduce_lr]
+    model.summary()
+    return model, callbacks
+
+#model, callbacks = shahnet_small(input_shape=(HEIGHT, WIDTH, CHANNEL))
+
 
     
 # %% MAIN FUNCTION
 
     
-def main():
+def main(model_size):
     import keras.backend as K
     HEIGHT = 14
     WIDTH = 40
@@ -198,38 +260,8 @@ def main():
     
     x_train, y_train, x_valid, y_valid = split_data_test_validation(x_train_all, y_train_all)
     
-    # Plot the time series of steering angles
-    plt.subplot(2,3,1)
-    plt.plot(steering)
-    plt.title("Steering angles (all data)")
-    plt.ylabel("Normalized angle")
-    plt.xlabel("Sample")
     
-    # Plot histogram of steering angles
-    plt.subplot(2,3,2)
-    plt.hist(steering,100)
-    plt.title("Steering angles histogram (all data)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-    
-    # Plot histogram of angles in training set
-    plt.subplot(2,3,3)
-    plt.hist(y_train,100)
-    plt.title("Angles after reducing zero values (train)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-    
-    # Plot histogram of angles in training set
-    plt.subplot(2,3,4)
-    plt.hist(y_valid,100)
-    plt.title("Angles after reducing zero values (train)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-    
-    
-    
-    plt.show()
-    
+    visualize_results(steering, y_train, y_valid)
     
     # Plot one image for negative, zero and positive angles
     neg = np.where(steering < -0.6)[0][0]
@@ -258,12 +290,18 @@ def main():
     
     #%%
     
-        
-    model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
+    if (model_size.lower()=="small"):
+        model, callbacks = shahnet_small(input_shape=(HEIGHT, WIDTH, CHANNEL))
+        model_name = "model_small"
+    elif(model_size.lower()=="large"):
+        model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
+        model_name = "model"
+    else:
+        raise Exception('Unknown model size. Use either "small" or "large".')
     
     
     # Save the model architecture
-    with open('model.json','w') as f:
+    with open(model_name+'.json','w') as f:
         f.write(model.to_json())
     
     # Train the model by using Keras' generator
@@ -290,10 +328,16 @@ def main():
     for i in range(a.shape[4]):
         plt.imshow(np.squeeze(a[:,:,:,:,i]),cmap='gray')
         plt.show()
+    plt.show()
 #%%
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description='Train a deep CNN network for autonomous driving.')
+    parser.add_argument('--model_size', type=str, default="large",
+    help='use large for a 6-layer CNN (+4K parameters) and small for a 4-layer CNN (217 parameters).')
+    args = parser.parse_args()
+    main(args.model_size)
 
 
 
