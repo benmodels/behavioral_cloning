@@ -12,17 +12,7 @@ from os import path
 from tqdm import tqdm
 import cv2
 from sklearn.model_selection import train_test_split
-from keras.preprocessing.image import ImageDataGenerator
-import keras.backend as K
-from keras.models import Sequential
-from keras.layers.convolutional import Convolution2D
-from keras.layers.core import Dense, Flatten, Dropout, Lambda
-from keras.layers.pooling import MaxPooling2D
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
-HEIGHT = 20
-WIDTH = 40
-CHANNEL = 3
 
 #%% === Load data
 def load_data_from_dir(data_path):
@@ -40,29 +30,37 @@ def load_data_from_dir(data_path):
         img_name = path.split(path_c)[-1]
         p = path.join(data_path, 'IMG', img_name)
         img = scipy.misc.imread(p)
-        img = cv2.resize(img,(WIDTH,HEIGHT))
+        img = preprocessing(img)
         img_center.append(img)
     img_center = np.array(img_center)
     steering = np.array(steering)
     steering = steering.reshape(-1,1)
     return img_center, steering
-
+def preprocessing(img):
+    HEIGHT = 14
+    WIDTH = 40
+    
+    h,w,c = img.shape
+    # Crop the top 30% of the image that only shows the sky
+    img = img[int(h*0.3):,:,:]
+    img = cv2.resize(img,(WIDTH,HEIGHT))
+    return img
 def load_data():
-    img_center, steering = load_data_from_dir('data')
+    img_center, steering = load_data_from_dir('data/data_1')
     
-    img_center_tmp, steering_tmp = load_data_from_dir('data_2')
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_2')
     img_center = np.vstack((img_center, img_center_tmp))
     steering = np.vstack((steering, steering_tmp))
     
-    img_center_tmp, steering_tmp = load_data_from_dir('data_3')
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_3')
     img_center = np.vstack((img_center, img_center_tmp))
     steering = np.vstack((steering, steering_tmp))
     
-    img_center_tmp, steering_tmp = load_data_from_dir('data_4')
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_4')
     img_center = np.vstack((img_center, img_center_tmp))
     steering = np.vstack((steering, steering_tmp))
+    
     steering = steering.reshape(-1)
-    
     return img_center, steering
 
 def horizontal_flip(x,y):
@@ -77,6 +75,9 @@ def horizontal_flip(x,y):
 
 
 def data_augmentation(x, y, batch_size):
+    from keras.preprocessing.image import ImageDataGenerator
+    import keras.backend as K
+
     option = dict(featurewise_center=False,
     samplewise_center=False,
     featurewise_std_normalization=False,
@@ -133,25 +134,31 @@ def split_data_test_validation(x_train_all, y_train_all):
     return x_train, y_train, x_valid, y_valid
     
 def shahnet(input_shape):
+    from keras.models import Sequential
+    from keras.layers.convolutional import Convolution2D
+    from keras.layers.core import Dense, Flatten, Dropout, Lambda
+    from keras.layers.pooling import MaxPooling2D
+    from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+    
     keep_prob = 0.5 
     activation = 'elu'
     
     model = Sequential()
     model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=input_shape, output_shape=input_shape))
-
-    model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
+#    model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     
-    model.add(Convolution2D(8, 3, 3, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     
-    model.add(Convolution2D(16, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
+    model.add(Convolution2D(8, 1, 1, subsample=(1, 1), border_mode="valid", activation=activation))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=None, border_mode='valid', dim_ordering='default'))
     ## === Fully connected layers
     model.add(Flatten())
-    model.add(Dense(50, activation=activation))
-    model.add(Dropout(keep_prob))
-    model.add(Dense(10, activation=activation))
+#    model.add(Dense(30, activation=activation))
+#    model.add(Dropout(keep_prob))
+#    model.add(Dense(20, activation=activation))
     model.add(Dropout(keep_prob))
     model.add(Dense(1, activation='tanh'))
     
@@ -166,116 +173,127 @@ def shahnet(input_shape):
     # Stop training when there is no improvment. 
     early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
     callbacks=[checkpoint, early_stop, reduce_lr]
-    
+    model.summary()
     return model, callbacks
 
+
+#model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
 
     
 # %% MAIN FUNCTION
 
-print("==================")
-print("Loading data ...")
-img_center, steering = load_data()
-x_train_all = img_center
-y_train_all = steering
-
-x_train, y_train, x_valid, y_valid = split_data_test_validation(x_train_all, y_train_all)
-
-# Plot the time series of steering angles
-plt.subplot(2,3,1)
-plt.plot(steering)
-plt.title("Steering angles (all data)")
-plt.ylabel("Normalized angle")
-plt.xlabel("Sample")
-
-# Plot histogram of steering angles
-plt.subplot(2,3,2)
-plt.hist(steering,100)
-plt.title("Steering angles histogram (all data)")
-plt.ylabel("Counts")
-plt.xlabel("Angle")
-
-# Plot histogram of angles in training set
-plt.subplot(2,3,3)
-plt.hist(y_train,100)
-plt.title("Angles after reducing zero values (train)")
-plt.ylabel("Counts")
-plt.xlabel("Angle")
-
-# Plot histogram of angles in training set
-plt.subplot(2,3,4)
-plt.hist(y_valid,100)
-plt.title("Angles after reducing zero values (train)")
-plt.ylabel("Counts")
-plt.xlabel("Angle")
-
-
-
-plt.show()
-
-
-# Plot one image for negative, zero and positive angles
-neg = np.where(steering < -0.6)[0][0]
-pos = np.where(steering >  0.6)[0][0]
-zer = np.where(np.logical_and(steering > -0.02, steering < 0.02))[0][200]
-
-plt.figure(num=None, figsize=(12, 6), dpi=80, facecolor='w', edgecolor='k')
-plt.subplot(1,3,1)
-plt.imshow(img_center[neg])
-plt.axis('off')
-plt.title('Negative angle')
-
-plt.subplot(1,3,2)
-plt.imshow(img_center[zer])
-plt.axis('off')
-plt.title('Zero angle')
-
-plt.subplot(1,3,3)
-plt.imshow(img_center[pos])
-plt.axis('off')
-plt.title('Positive angle')
-
-
-
     
-
-#%%
-
+def main():
+    import keras.backend as K
+    HEIGHT = 14
+    WIDTH = 40
+    CHANNEL = 3
     
-model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
-
-
-# Save the model architecture
-with open('model.json','w') as f:
-    f.write(model.to_json())
-
-# Train the model by using Keras' generator
-history = model.fit_generator(data_augmentation(x_train, y_train, batch_size=64),
-                                  validation_data=(x_valid, y_valid),
-                                  samples_per_epoch=len(x_train), nb_epoch=200,callbacks=callbacks)
-
-# Plot validation and training loss
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('loss')
-plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='upper left')
-plt.show()
-
-conv1 = K.function(model.inputs, [model.layers[1].output]) 
-conv2 = K.function(model.inputs, [model.layers[3].output]) 
-conv3 = K.function(model.inputs, [model.layers[5].output]) 
-
-img = x_train[0]
-img = img.reshape(np.hstack((1,img.shape)))
-a = np.array(conv1([img]))
-for i in range(a.shape[4]):
-    plt.imshow(np.squeeze(a[:,:,:,:,i]),cmap='gray')
+    
+    print("==================")
+    print("Loading data ...")
+    img_center, steering = load_data()
+    x_train_all = img_center
+    y_train_all = steering
+    
+    x_train, y_train, x_valid, y_valid = split_data_test_validation(x_train_all, y_train_all)
+    
+    # Plot the time series of steering angles
+    plt.subplot(2,3,1)
+    plt.plot(steering)
+    plt.title("Steering angles (all data)")
+    plt.ylabel("Normalized angle")
+    plt.xlabel("Sample")
+    
+    # Plot histogram of steering angles
+    plt.subplot(2,3,2)
+    plt.hist(steering,100)
+    plt.title("Steering angles histogram (all data)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    # Plot histogram of angles in training set
+    plt.subplot(2,3,3)
+    plt.hist(y_train,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    # Plot histogram of angles in training set
+    plt.subplot(2,3,4)
+    plt.hist(y_valid,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    
+    
     plt.show()
+    
+    
+    # Plot one image for negative, zero and positive angles
+    neg = np.where(steering < -0.6)[0][0]
+    pos = np.where(steering >  0.6)[0][0]
+    zer = np.where(np.logical_and(steering > -0.02, steering < 0.02))[0][200]
+    
+    plt.figure(num=None, figsize=(12, 6), dpi=80, facecolor='w', edgecolor='k')
+    plt.subplot(1,3,1)
+    plt.imshow(img_center[neg])
+    plt.axis('off')
+    plt.title('Negative angle')
+    
+    plt.subplot(1,3,2)
+    plt.imshow(img_center[zer])
+    plt.axis('off')
+    plt.title('Zero angle')
+    
+    plt.subplot(1,3,3)
+    plt.imshow(img_center[pos])
+    plt.axis('off')
+    plt.title('Positive angle')
+    
+    
+    
+        
+    
+    #%%
+    
+        
+    model, callbacks = shahnet(input_shape=(HEIGHT, WIDTH, CHANNEL))
+    
+    
+    # Save the model architecture
+    with open('model.json','w') as f:
+        f.write(model.to_json())
+    
+    # Train the model by using Keras' generator
+    history = model.fit_generator(data_augmentation(x_train, y_train, batch_size=64),
+                                      validation_data=(x_valid, y_valid),
+                                      samples_per_epoch=len(x_train), nb_epoch=200,callbacks=callbacks)
+    
+    # Plot validation and training loss
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.show()
+    
+    conv1 = K.function(model.inputs, [model.layers[1].output]) 
+    conv2 = K.function(model.inputs, [model.layers[3].output]) 
+    conv3 = K.function(model.inputs, [model.layers[5].output]) 
+    
+    img = x_train[0]
+    img = img.reshape(np.hstack((1,img.shape)))
+    a = np.array(conv1([img]))
+    for i in range(a.shape[4]):
+        plt.imshow(np.squeeze(a[:,:,:,:,i]),cmap='gray')
+        plt.show()
 #%%
 
-
+if __name__ == "__main__":
+    main()
 
 
 

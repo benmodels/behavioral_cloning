@@ -10,12 +10,10 @@ from PIL import Image
 from PIL import ImageOps
 from flask import Flask, render_template
 from io import BytesIO
+from model import preprocessing
 
 from keras.models import model_from_json
-import cv2
-HEIGHT = 20
-WIDTH = 40
-CHANNEL = 3
+
 #from preprocess import image_preprocess
 
 # Fix error with Keras and TensorFlow
@@ -47,8 +45,8 @@ def telemetry(sid, data):
     #image.save("debug/{0:0>10}.jpg".format(sequence_num))
     
     sequence_num += 1
-    image_array = cv2.resize(np.asarray(image),(WIDTH,HEIGHT))
-    image_array = image_array.reshape((1,HEIGHT,WIDTH,CHANNEL))
+    image_array = preprocessing(np.asarray(image))
+    image_array = image_array.reshape(np.hstack((1,image_array.shape)))
     
     # This model currently assumes that the features of the model are just the images. Feel free to change this.
     steering_angle = float(model.predict(image_array, batch_size=1)[0])
