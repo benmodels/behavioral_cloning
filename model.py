@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Spyder Editor
 
-This is a temporary script file.
-"""
 import csv
 from matplotlib import pyplot as plt
 import numpy as np
@@ -18,7 +14,29 @@ from keras.layers.core import Dense, Flatten, Dropout, Lambda
 from keras.layers.pooling import MaxPooling2D
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
-#%% === Load data
+# Wrapper to load data from multiple directories, stack them together and
+# return the images from center camera with corresponding steering angles
+def load_data():
+    img_center, steering = load_data_from_dir('data/data_1')
+    
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_2')
+    img_center = np.vstack((img_center, img_center_tmp))
+    steering = np.vstack((steering, steering_tmp))
+    
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_3')
+    img_center = np.vstack((img_center, img_center_tmp))
+    steering = np.vstack((steering, steering_tmp))
+    
+    img_center_tmp, steering_tmp = load_data_from_dir('data/data_4')
+    img_center = np.vstack((img_center, img_center_tmp))
+    steering = np.vstack((steering, steering_tmp))
+    
+    steering = steering.reshape(-1)
+    return img_center, steering
+
+# Load data from directories that have
+#   a subdirectory called "IMG" that includes the images
+#   a csv file named driving_log.csv that provides a list of images and associated steering angles
 def load_data_from_dir(data_path):
     # Available fields in the csv files: 'throttle', 'brake', 'speed', 'steering', 'right', 'left', 'center'
     steering = []
@@ -40,43 +58,29 @@ def load_data_from_dir(data_path):
     steering = np.array(steering)
     steering = steering.reshape(-1,1)
     return img_center, steering
+
+# Image preprocessing:
+#   Downsample images
+#   Crop 30% of the image from top (sky area)
 def preprocessing(img):
     HEIGHT = 14
     WIDTH = 40
-    
     h,w,c = img.shape
     # Crop the top 30% of the image that only shows the sky
     img = img[int(h*0.3):,:,:]
     img = cv2.resize(img,(WIDTH,HEIGHT))
     return img
-def load_data():
-    img_center, steering = load_data_from_dir('data/data_1')
-    
-    img_center_tmp, steering_tmp = load_data_from_dir('data/data_2')
-    img_center = np.vstack((img_center, img_center_tmp))
-    steering = np.vstack((steering, steering_tmp))
-    
-    img_center_tmp, steering_tmp = load_data_from_dir('data/data_3')
-    img_center = np.vstack((img_center, img_center_tmp))
-    steering = np.vstack((steering, steering_tmp))
-    
-    img_center_tmp, steering_tmp = load_data_from_dir('data/data_4')
-    img_center = np.vstack((img_center, img_center_tmp))
-    steering = np.vstack((steering, steering_tmp))
-    
-    steering = steering.reshape(-1)
-    return img_center, steering
 
-def horizontal_flip(x,y):
-    x_ = np.copy(x)
-    y_ = np.copy(y)
-    for i in range(x.shape[0]):
-        if (np.random.rand(1)>0.5):
-            x_[i] = np.fliplr(x_[i])
-            y_[i] = -np.copy(y_[i])
-    return x_, y_
-    
-
+#### Data Augmentation:
+#    Keras has a super helpful data generator function called `ImageDataGenerator`
+#    that can augment the available data with
+#    new images synthesized by applying multiple wellknown transformations on them.
+#    After trying all transformation with different purterbation values the following parameters turned out to work best with
+#    the current architecture and dataset:
+#    * rotation_range: 5 degrees (Degree range for random rotations)
+#    * width_shift_range: 5% (Range for random horizontal shifts)
+#    * height_shift_range: 5% (Range for random vertical shifts)
+#    * zoom_range: 5% (Range for random zoom in/out)
 
 def data_augmentation(x, y, batch_size):
     from keras.preprocessing.image import ImageDataGenerator
@@ -105,8 +109,22 @@ def data_augmentation(x, y, batch_size):
     for X_batch, Y_batch in datagen.flow(x, y, batch_size=batch_size):
         X_batch, Y_batch = horizontal_flip(X_batch, Y_batch)
         yield X_batch, Y_batch
-    
+
+#Horizontal Flip:
+#    Image outputs from the Keras generator are flipped horizontally with 50% randomness to increase the number of samples. 
+#    Once an image is fliped, the associated steering angle is multipled by -1 to be consistent with the new image.
+def horizontal_flip(x,y):
+    x_ = np.copy(x)
+    y_ = np.copy(y)
+    for i in range(x.shape[0]):
+        if (np.random.rand(1)>0.5):
+            x_[i] = np.fliplr(x_[i])
+            y_[i] = -np.copy(y_[i])
+    return x_, y_
         
+# Reducing zero-angle samples
+#    The time series and histogram of the steering angles in training data is shown in the figure below. 
+#    Since most of the track is straight, there is a large population around zero angle. 
 def reduce_zero_angle_samples(x_train_all, y_train_all):
     zero_steering = y_train_all == 0
     idx = np.where(zero_steering)[0]
@@ -117,7 +135,13 @@ def reduce_zero_angle_samples(x_train_all, y_train_all):
     x_train_all = x_train_all[np.logical_not(zero_steering)]
     y_train_all = y_train_all[np.logical_not(zero_steering)]
     return x_train_all, y_train_all
-                              
+
+# Splitting Data Between Training and Validation Sets:
+#    Since the consecutive samples are very similar to each other shuffling the data and spliting it into training and validation cause
+#    the training set to have images almost identical to the ones in the validation set. To keep the validation set different from the
+#    training set the samples are first divided into batches of 10 consecutive samples and then 33% of the batches are randomly selected as
+#    the validation set. The histogram of training and validation sets are shown below. Note that the distributions are similar and there is no 
+#    large peak at 0 anymore.
 def split_data_test_validation(x_train_all, y_train_all):
     x_train_all, y_train_all = reduce_zero_angle_samples(x_train_all, y_train_all)
     n_frames = x_train_all.shape[0]
@@ -136,6 +160,41 @@ def split_data_test_validation(x_train_all, y_train_all):
     x_train, y_train = x_train_all[np.logical_not(i_valid)], y_train_all[np.logical_not(i_valid)]
     assert x_valid.shape[0]+x_train.shape[0] == n_frames
     return x_train, y_train, x_valid, y_valid
+
+def visualize_results(steering, y_train, y_valid):
+    # Plot the time series of steering angles
+    plt.figure(figsize=(12,6))
+    plt.subplot(1,2,1)
+    plt.plot(steering)
+    plt.title("Steering angles (all data)")
+    plt.ylabel("Normalized angle")
+    plt.xlabel("Sample")
+    
+    # Plot histogram of steering angles
+    plt.subplot(1,2,2)
+    plt.hist(steering,100)
+    plt.title("Steering angles histogram (all data)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    plt.draw()
+    plt.savefig('./Figures/steering_original')
+    
+    plt.figure(figsize=(12,6))
+    # Plot histogram of angles in training set
+    plt.subplot(1,2,1)
+    plt.hist(y_train,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    
+    # Plot histogram of angles in training set
+    plt.subplot(1,2,2)
+    plt.hist(y_valid,100)
+    plt.title("Angles after reducing zero values (train)")
+    plt.ylabel("Counts")
+    plt.xlabel("Angle")
+    plt.draw()
+    plt.savefig('./Figures/steering_equalized')
     
 def shahnet(input_shape):
     keep_prob = 0.5 
@@ -170,39 +229,12 @@ def shahnet(input_shape):
     # Stop training when there is no improvment. 
     early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
     callbacks=[checkpoint, early_stop, reduce_lr]
+    
+    # Model visualization
+    from keras.utils.visualize_util import plot
+    plot(model, to_file='./Figures/model.png',show_shapes=True)
     model.summary()
     return model, callbacks
-
-def visualize_results(steering, y_train, y_valid):
-    # Plot the time series of steering angles
-    plt.subplot(2,2,1)
-    plt.plot(steering)
-    plt.title("Steering angles (all data)")
-    plt.ylabel("Normalized angle")
-    plt.xlabel("Sample")
-    
-    # Plot histogram of steering angles
-    plt.subplot(2,2,2)
-    plt.hist(steering,100)
-    plt.title("Steering angles histogram (all data)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-    
-    # Plot histogram of angles in training set
-    plt.subplot(2,2,3)
-    plt.hist(y_train,100)
-    plt.title("Angles after reducing zero values (train)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-    
-    # Plot histogram of angles in training set
-    plt.subplot(2,2,4)
-    plt.hist(y_valid,100)
-    plt.title("Angles after reducing zero values (train)")
-    plt.ylabel("Counts")
-    plt.xlabel("Angle")
-
-    plt.draw()
 
 
 def shahnet_small(input_shape):
@@ -235,6 +267,11 @@ def shahnet_small(input_shape):
     # Stop training when there is no improvment. 
     early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
     callbacks=[checkpoint, early_stop, reduce_lr]
+    
+    
+    # Model visualization
+    from keras.utils.visualize_util import plot
+    plot(model, to_file='./Figures/model_small.png',show_shapes=True)
     model.summary()
     return model, callbacks
 
@@ -262,6 +299,7 @@ def main(model_size):
     
     
     visualize_results(steering, y_train, y_valid)
+    plt.savefig('1.png')
     
     # Plot one image for negative, zero and positive angles
     neg = np.where(steering < -0.6)[0][0]
