@@ -51,7 +51,7 @@ In the small model the visual features are directly converted to the steering an
 The total number of parameters in the large model is 4723, and in the small model is 217. More details about each layer such as the strides, input/output dimensions and number of parameters can be found in the figures and tables shown below.
 
 <img align="center|top">
-<img src="./Figures/model.png" width="400"/> <img src="./Figures/model_small.png" width="400"/> 
+<img src="./Figures/model.png" width="200"/> <img src="./Figures/model_small.png" width="200"/> 
 
 <img align="center|top">
 <img src="./Figures/model_summary.png" width="400"/> <img src="./Figures/model_small_summary.png" width="400"/> 
