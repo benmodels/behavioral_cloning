@@ -1,25 +1,25 @@
 # Behavioral Cloning for Automated Driving Using Deep Convolutional Neural Networks
 
-This repository provides the source codes for a Keras implementation of a deep convolutional neural network (CNN) that 
-can learn from a set of demonestrations provided by a human driver 
-and autonomously drive a car in a simulated environment.
+This repository provides the source codes for a Keras implementation of a deep convolutional neural network (CNN) that can autonomously drive a car in a simulated environment by
+learning from a set of demonestrations provided by a human driver -- a task that is commonly known as "Behavioral Cloning".
 
 Two CNN models with significantly different sizes and slightly different performances are trained in this work.
-The "larger" model consists of 3/3 Conv/Fully-connected(FC) layers  with 4723 parameters and the "smaller" one has 
+The "larger" model consists of 3/3 Convolutional/Fully-connected(FC) layers  with 4723 parameters and the "smaller" one has 
 3/1 Conv/FC layers with only 217 parameters. Both models can pass several laps successfully but the large model keeps the car closer
-to the lane center especially in sharp turns.
+to the center of the lane especially in sharp turns.
 
 
 #### Prerequisites:
 * Python Packages: Keras, TensorFlow, OpenCV, flask, eventlet, python-socketio
-* Simulator: Udacity has recently created a car simulator that is used in this work for 
+* Simulator: Udacity has recently created a car simulator which is used in this work for 
 recording demonestrations and validating the trained networks. Running the simulator and 
 recording data is very straight forward. Validating the trained model on the simulator is explained below.
 
 
 #### Running the Pretrained Networks:
-In terminal run `python drive.py model.json` to load the large model with
-pretrained weights and run it. Similarly, use `python drive.py model_small.json` to run the smaller model. 
+In terminal enter `python drive.py model.json` to load the large model with
+pretrained weights and run it. 
+Similarly, use `python drive.py model_small.json` to run the smaller model. 
 
 Once you get a message like `wsgi starting up on http://0.0.0.0:4567` everything is ready and you can 
 launch the simulator to see the car driving in autonomous mode.
@@ -29,7 +29,7 @@ launch the simulator to see the car driving in autonomous mode.
 #### Training (New) Networks:
 `model.py` is the script used to create and train the model. Feel free to 
 change the model architectures in `shahnet()` and `shahnet_small()` functions and
-then use the following command to train the models:
+then use the following commands to train the models:
 * To train the large model: in terminal run `python model.py`
 * To train the small model: in terminal run `python model.py --model_size small`
 
@@ -42,11 +42,19 @@ steering angles by driving the car and recording the logs.
 
 # Method:
 #### Model Architecture:
-A deep neural network consists of xxx 2D convolutional layers followed by xxx fully connected layers is implemented in `shahnet(image_shape)` function in `model.py`. In order to prevent overfitting each fully connected layers are stacked with a Dropout layer that randomly sets 50% of the input stimula to zero (only) during training. Moreover, MaxPooling layers are placed after the Conv layers to downsample the images over the pipe, decrease the number of trainable parameters and as a result overfitting prevention. After some manual iterations, it turned out that 2x2 max-pooling yields to the best performance along with the othery layers.
+Two deep convolutional neural network architectures are designed and validated in this work. The "large" model can be found in  `shahnet(image_shape)` function and the small one is implemented in  `shahnet_small(image_shape)` inside `model.py`.  Both models consist of three 2D-convolutional layers that are followed by fully connected layers. 
+Nonlinearity is introduced in the model by adding "Eexponential Linear Unit" (ELU) activations after the Conv layers. It has been shown that ELU activation can speed up learning in deep neural networks and lead to higher accuracies. Like rectified linear units (ReLUs), ELUs also avoid a vanishing gradient via the identity for positive values. However, ELUs have improved learning characteristics compared to the units with other activation functions.
+
+In order to prevent overfitting each the connected layers are stacked with Dropout layers that randomly sets 50% of the input stimula to zero (only) during training. Moreover, MaxPooling layers are placed after the Conv layers to downsample the images over the pipe, decrease the number of trainable parameters and as a result prevent overfitting. After some manual iterations, it turned out that 2x2 max-pooling yields the best performance along with the other layers. The number of kernels in Conv layers of the large model are respectivly 8, 8 and 16, while in the small model they all have 8 kernels. The number of visual features outputed by the stack of Conv layers are respectivly 64 and 40 in the large and small models.
+In the small model the visual features are directly converted to the steering angle through one fully connected layer followed by a "tanh()" nonlinearity (note that the angles are normalized to the range of -1 and 1). However, in the larger model there are 3 fully connected layers with 50 (ELU), 10 (ELU) and 1 (tanh) output neurons. 
+
+The total number of parameters in the large model is 4723, and in the small model is 217. More details about each layer such as the strides, input/output dimensions and number of parameters can be found in the figures and tables shown below.
+
 <img align="center|top">
-<img src="./Figures/model.png" width="200"/> <img src="./Figures/model_small.png" width="200"/> 
+<img src="./Figures/model.png" width="400"/> <img src="./Figures/model_small.png" width="400"/> 
 
-
+<img align="center|top">
+<img src="./Figures/model_summary.png" width="400"/> <img src="./Figures/model_small_summary.png" width="400"/> 
 
                                                                                                                                
 #### Preprocessing:
@@ -56,7 +64,7 @@ not provide any useful information about the road itself.
 * Resizing: All images are resized to 14x40 pixels. The color space (RGB) is not changed.
 
 * Normalization: The intensity of original images is between 0 and 255. These values are linearly transformed to [-0.5, 0.5]
-range.
+range. Since the input data is generated on the fly, the normalization is performed by a `Lambda` layer in TensorFlow to be run on the GPU (as opposed to performing the normalization on the CPU before passing the data to the network).
 
 * Reducing zero-angle samples: The time series and histogram of the steering angles in training data is shown in the figure below. 
 Since most of the track is straight, there is a large population around zero angle. 
