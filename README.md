@@ -7,7 +7,7 @@ Two CNN models with significantly different sizes and slightly different perform
 The "larger" model consists of 3/3 Convolutional/Fully-connected(FC) layers  with 4723 parameters and the "smaller" one has 
 3/1 Conv/FC layers with only 217 parameters. Both models can pass several laps successfully but the large model keeps the car closer
 to the center of the lane especially in sharp turns.
-
+The main motive behind designing the smaller model is to show how the performance degrades as the network gets smaller and also illustrate the power of deep architectures in learning relatively complex tasks by using a small number of parameters. In fact, if we wanted to use a naive fully connected implementation, we had to have at least 561 (14x40+1) parameters to map the resized input image (14x40 pixels) to the ouput. 
 
 #### Prerequisites:
 * Python Packages: Keras, TensorFlow, OpenCV, flask, eventlet, python-socketio
@@ -17,14 +17,12 @@ recording data is very straight forward. Validating the trained model on the sim
 
 
 #### Running the Pretrained Networks:
-In terminal enter `python drive.py model.json` to load the large model with
-pretrained weights and run it. 
-Similarly, use `python drive.py model_small.json` to run the smaller model. 
+In terminal enter `python drive.py model.json --speed 20` to load the large model with
+pretrained weights and drive the car at 20mph. 
+Similarly, use `python drive.py model_small.json --speed 30` to run the smaller model at 30mph.
 
 Once you get a message like `wsgi starting up on http://0.0.0.0:4567` everything is ready and you can 
 launch the simulator to see the car driving in autonomous mode.
-
-
 
 #### Training (New) Networks:
 `model.py` is the script used to create and train the model. Feel free to 
@@ -40,6 +38,24 @@ steering angles by driving the car and recording the logs. This dataset contains
 (acknowledgment: `./data/data_4` is a subset of this [dataset](https://github.com/matthewzimmer/CarND-BehavioralCloning-P3)).
 
 
+#### Summary of Results:
+The two deep CNN models that are designed and trained in this project are able to drive through the track successfuly and pass several laps. However, the performance in terms of closeness to the center of the lane is different and as expected the deeper model that has 20x more parameters can keep the car farther from the ledges. When the car is being controlled by the small model it enters the road side when making the sharpest turn. As mentioned above, the main motive behind designing this relatively small model was showing how the performance degrades as the network gets smaller and showing the power of deep learning in learning relatively complicated tasks using deep networks with small number of parameters. In fact, if we wanted to use a naive fully connected implementation, we had to have at least 561 (14x40+1) parameters to map the input image (14x40 pixels) to the ouput.
+
+See the video of the large model driving at 15mph:
+<a href="https://www.youtube.com/watch?v=09za86lCN8w" target="_blank"><img src="./Figures/model_15.png" 
+alt="See the video of the large model driving at 15mph" width="240" height="180" border="10" /></a>
+
+See the video of the large model driving at 30mph:
+<a href="https://www.youtube.com/watch?v=4PMRxWAGRvg" target="_blank"><img src="./Figures/model_30.png" 
+alt="See the video of the large model driving at 30mph" width="240" height="180" border="10" /></a>
+
+See the video of the smaller model driving at 15mph:
+<a href="https://www.youtube.com/watch?v=buFHviLQ7SY" target="_blank"><img src="./Figures/model_small_15.png" 
+alt="See the video of the smaller model driving at 15mph" width="240" height="180" border="10" /></a>
+
+See the video of the smaller model driving at 30mph:
+<a href="https://www.youtube.com/watch?v=Z8abHDGueHs" target="_blank"><img src="./Figures/model_small_30.png" 
+alt="See the video of the smaller model driving at 30mph" width="240" height="180" border="10" /></a>
 
 # Method:
 #### Model Architecture:
@@ -61,18 +77,7 @@ The total number of parameters in the large model is 4723, and in the small mode
 Mean Squared Error of steering angle prediction is used as the loss function and both models are trained using "ADAM" optimizer with learning rate 0.001 and first/second moment coefficients (beta_1/beta_2) equal to 0.9 and 0.999 respectively. 
 Models often benefit from reducing the learning rate once learning stagnates. The learning rate is multiplied by 0.8 whenever no improvement in vlidation loss is seen in the last 10 epochs.
 In order to speed up the training and prevent overfitting due to training over many epochs, an early stopping criterion is considered based on the loss over validation set. That is, after each epoch the weights are saved only if the validation loss was less than the minimum visited so far and the training stops if the validation loss was not improved in the past 20 epochs. The maximum number of epochs is chosen large enough (200) so that the training only stops when the aforementioned criteria are met.
-
-
-    
-    # Save the best model by validation mean squared error
-    checkpoint = ModelCheckpoint("model_small.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-    # Reduce learning rate when the validation loss plateaus
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=5, min_lr=1e-6)    
-    # Stop training when there is no improvment. 
-    early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
-    callbacks=[checkpoint, early_stop, reduce_lr]
-Training: Optimizer, callbacks, number of epochs.
-                                                                                                                               
+                                                                                                                              
 #### Preprocessing:
 * Cropping: 30% of the image from top is cropped out to reduce the image size. This part of the image only shows the sky and does 
 not provide any useful information about the road itself. 
