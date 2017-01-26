@@ -32,7 +32,7 @@ then use the following commands to train the models:
 * To train the small model: in terminal run `python model.py --model_size small`
 
 
-**Training Data:** The training data collected from driving the car in the simulator can be found in `./data` directory.
+**Training Data:** The training data collected from driving the car in the simulator can be found in `./data` directory ***only on "data" branch***.
 One can use the +41K images available in this dataset, or run the simulator and collect a different set of images and 
 steering angles by driving the car and recording the logs. This dataset contains samples of driving on straight tracks and bringing the car back to the center of the lane from a stage that is close to the road sides.
 (acknowledgment: `./data/data_4` is a subset of this [dataset](https://github.com/matthewzimmer/CarND-BehavioralCloning-P3)).
@@ -131,4 +131,4 @@ Once an image is flipped, the associated steering angle is multiplied by -1 to b
 
 
 
- 
+
