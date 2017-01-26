@@ -36,8 +36,9 @@ then use the following commands to train the models:
 
 **Training Data:** The training data collected from driving the car in the simulator can be found in `./data` directory.
 One can use the +41K images available in this dataset, or run the simulator and collect a different set of images and 
-steering angles by driving the car and recording the logs.
+steering angles by driving the car and recording the logs. This dataset contains samples of driving on straight tracks and bringing the car back to the center of the lane from a stage that is close to the road sides.
 (acknowledgment: `./data/data_4` is a subset of this [dataset](https://github.com/matthewzimmer/CarND-BehavioralCloning-P3)).
+
 
 
 # Method:
@@ -48,7 +49,7 @@ Nonlinearity is introduced in the model by adding "Eexponential Linear Unit" (EL
 In order to prevent overfitting each the connected layers are stacked with Dropout layers that randomly sets 50% of the input stimula to zero (only) during training. Moreover, MaxPooling layers are placed after the Conv layers to downsample the images over the pipe, decrease the number of trainable parameters and as a result prevent overfitting. After some manual iterations, it turned out that 2x2 max-pooling yields the best performance along with the other layers. The number of kernels in Conv layers of the large model are respectivly 8, 8 and 16, while in the small model they all have 8 kernels. The number of visual features outputed by the stack of Conv layers are respectivly 64 and 40 in the large and small models.
 In the small model the visual features are directly converted to the steering angle through one fully connected layer followed by a "tanh()" nonlinearity (note that the angles are normalized to the range of -1 and 1). However, in the larger model there are 3 fully connected layers with 50 (ELU), 10 (ELU) and 1 (tanh) output neurons. 
 
-The total number of parameters in the large model is 4723, and in the small model is 217. More details about each layer such as the strides, input/output dimensions and number of parameters can be found in the figures and tables shown below.
+The total number of parameters in the large model is 4723, and in the small model is 217. More details about each layer such as the strides, input/output dimensions and number of parameters can be found in the figures and tables shown below (large network on the left and small one on the right).
 
 <img align="center|top">
 <img src="./Figures/model.png" width="200"/> <img src="./Figures/model_small.png" width="200"/> 
@@ -56,6 +57,21 @@ The total number of parameters in the large model is 4723, and in the small mode
 <img align="center|top">
 <img src="./Figures/model_summary.png" width="400"/> <img src="./Figures/model_small_summary.png" width="400"/> 
 
+#### Training:
+Mean Squared Error of steering angle prediction is used as the loss function and both models are trained using "ADAM" optimizer with learning rate 0.001 and first/second moment coefficients (beta_1/beta_2) equal to 0.9 and 0.999 respectively. 
+Models often benefit from reducing the learning rate once learning stagnates. The learning rate is multiplied by 0.8 whenever no improvement in vlidation loss is seen in the last 10 epochs.
+In order to speed up the training and prevent overfitting due to training over many epochs, an early stopping criterion is considered based on the loss over validation set. That is, after each epoch the weights are saved only if the validation loss was less than the minimum visited so far and the training stops if the validation loss was not improved in the past 20 epochs. The maximum number of epochs is chosen large enough (200) so that the training only stops when the aforementioned criteria are met.
+
+
+    
+    # Save the best model by validation mean squared error
+    checkpoint = ModelCheckpoint("model_small.h5", monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+    # Reduce learning rate when the validation loss plateaus
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=5, min_lr=1e-6)    
+    # Stop training when there is no improvment. 
+    early_stop = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=20, verbose=1, mode='min')
+    callbacks=[checkpoint, early_stop, reduce_lr]
+Training: Optimizer, callbacks, number of epochs.
                                                                                                                                
 #### Preprocessing:
 * Cropping: 30% of the image from top is cropped out to reduce the image size. This part of the image only shows the sky and does 
@@ -90,11 +106,11 @@ the current architecture and dataset:
 * height_shift_range: 5% (Range for random vertical shifts)
 * zoom_range: 5% (Range for random zoom in/out)
 
-Horizontal Flip:
+**Horizontal Fliping:**
 Image outputs from the Keras generator are flipped horizontally with 50% randomness to increase the number of samples. 
 Once an image is fliped, the associated steering angle is multipled by -1 to be consistent with the new image.
 
-Training: Optimizer, callbacks, number of epochs.
+
 
 
 ### List of Main Files: 
